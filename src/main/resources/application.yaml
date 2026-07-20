@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: crm-workdlow
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/crm
+    username: crm_workflow
+    password: admin
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 10
+      auto-commit: false
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: crm_workflow
+
+  liquibase:
+    change-log: classpath:db/changelog/master.xml
+    default-schema: crm_workflow
+    contexts: dev
+
+server:
+  port: 8401
+
+logging:
+  level:
+    org.hibernate.orm.connections.pooling: warn
