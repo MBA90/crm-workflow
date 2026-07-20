@@ -26,7 +26,6 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/master.xml
     default-schema: crm_workflow
-    contexts: dev
 
 server:
   port: 8401
