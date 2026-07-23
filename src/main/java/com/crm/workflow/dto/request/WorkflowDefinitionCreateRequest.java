@@ -1,4 +1,4 @@
-package com.crm.workflow.dto;
+package com.crm.workflow.dto.request;
 
 import com.crm.workflow.domain.enums.EntityType;
 import com.crm.workflow.domain.enums.WorkflowAction;

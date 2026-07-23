@@ -1,8 +1,8 @@
 package com.crm.workflow.mapper;
 
 import com.crm.workflow.domain.WorkflowDefinitionStep;
+import com.crm.workflow.dto.request.WorkflowDefinitionStepRequest;
 import com.crm.workflow.dto.WorkflowDefinitionStepDto;
-import com.crm.workflow.dto.WorkflowDefinitionStepRequest;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
