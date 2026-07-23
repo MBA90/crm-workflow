@@ -17,6 +17,7 @@ import com.crm.workflow.exception.WorkflowRequestStepNotFoundException;
 import com.crm.workflow.mapper.WorkflowRequestMapper;
 import com.crm.workflow.mapper.WorkflowRequestStepMapper;
 import com.crm.workflow.repository.WorkflowDefinitionRepository;
+import com.crm.workflow.repository.WorkflowDefinitionStepRepository;
 import com.crm.workflow.repository.WorkflowRequestRepository;
 import com.crm.workflow.repository.WorkflowRequestStepRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +26,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +43,7 @@ public class WorkflowRequestService {
     private final WorkflowRequestRepository requestRepository;
     private final WorkflowRequestStepRepository requestStepRepository;
     private final WorkflowDefinitionRepository definitionRepository;
+    private final WorkflowDefinitionStepRepository definitionStepRepository;
     private final WorkflowRequestMapper requestMapper;
     private final WorkflowRequestStepMapper requestStepMapper;
 
@@ -52,7 +57,7 @@ public class WorkflowRequestService {
         }
 
         WorkflowRequest request = new WorkflowRequest();
-        request.setDefinition(definition);
+        request.setDefinitionId(definition.getDefinitionId());
         request.setEntityType(createRequest.entityType());
         request.setEntityId(createRequest.entityId());
         request.setAction(createRequest.action());
@@ -61,7 +66,7 @@ public class WorkflowRequestService {
         request.setRequestedBy(createRequest.requestedBy());
         request.setRequesterName(createRequest.requesterName());
 
-        return requestMapper.toDto(requestRepository.save(request));
+        return requestMapper.toDto(requestRepository.save(request), List.of());
     }
 
     public WorkflowRequestDto submit(UUID requestId) {
@@ -78,37 +83,54 @@ public class WorkflowRequestService {
                     "A request is already in progress for " + request.getEntityType() + "/" + request.getEntityId());
         }
 
-        List<WorkflowDefinitionStep> definitionSteps = request.getDefinition().getSteps();
+        WorkflowDefinition definition = definitionRepository.findById(request.getDefinitionId())
+                .orElseThrow(() -> new WorkflowDefinitionNotFoundException(request.getDefinitionId()));
+
+        List<WorkflowDefinitionStep> definitionSteps = definitionStepRepository
+                .findByDefinitionIdOrderByStepOrderAsc(definition.getDefinitionId());
         if (definitionSteps.isEmpty()) {
-            throw new InvalidWorkflowRequestException("Definition has no steps: " + request.getDefinition().getDefinitionId());
+            throw new InvalidWorkflowRequestException("Definition has no steps: " + definition.getDefinitionId());
         }
 
         Instant now = Instant.now();
         int firstStepOrder = definitionSteps.get(0).getStepOrder();
 
+        List<WorkflowRequestStep> steps = new ArrayList<>();
         for (WorkflowDefinitionStep definitionStep : definitionSteps) {
-            WorkflowRequestStep step = requestStepMapper.fromDefinitionStep(definitionStep);
+            WorkflowRequestStep step = requestStepMapper.toEntity(definitionStep);
+            step.setRequestId(request.getRequestId());
             step.setSlaDueAt(now.plus(Duration.ofHours(definitionStep.getSlaHours())));
             step.setStatus(definitionStep.getStepOrder() == firstStepOrder
                     ? RequestStepStatus.ACTIVE
                     : RequestStepStatus.PENDING);
-            request.addStep(step);
+            steps.add(step);
         }
+        requestStepRepository.saveAll(steps);
 
         request.setOverallStatus(OverallStatus.IN_PROGRESS);
         request.setCurrentStep(firstStepOrder);
 
-        return requestMapper.toDto(request);
+        return requestMapper.toDto(request, steps);
     }
 
     @Transactional(readOnly = true)
     public WorkflowRequestDto getById(UUID requestId) {
-        return requestMapper.toDto(findOrThrow(requestId));
+        WorkflowRequest request = findOrThrow(requestId);
+        List<WorkflowRequestStep> steps = requestStepRepository.findByRequestIdOrderByStepOrderAsc(requestId);
+        return requestMapper.toDto(request, steps);
     }
 
     @Transactional(readOnly = true)
     public List<WorkflowRequestDto> list(Collection<OverallStatus> overallStatuses) {
-        return requestMapper.toDtoList(requestRepository.findByOverallStatusIn(overallStatuses));
+        List<WorkflowRequest> requests = requestRepository.findByOverallStatusIn(overallStatuses);
+        List<UUID> requestIds = requests.stream().map(WorkflowRequest::getRequestId).toList();
+        Map<UUID, List<WorkflowRequestStep>> stepsByRequestId = requestStepRepository
+                .findByRequestIdInOrderByStepOrderAsc(requestIds).stream()
+                .collect(Collectors.groupingBy(WorkflowRequestStep::getRequestId));
+
+        return requests.stream()
+                .map(request -> requestMapper.toDto(request, stepsByRequestId.getOrDefault(request.getRequestId(), List.of())))
+                .toList();
     }
 
     public WorkflowRequestDto decide(UUID requestStepId, WorkflowRequestStepDecisionRequest decision) {
@@ -125,25 +147,27 @@ public class WorkflowRequestService {
         step.setComment(decision.comment());
         step.setDecidedAt(now);
 
-        WorkflowRequest request = step.getRequest();
+        WorkflowRequest request = findOrThrow(step.getRequestId());
 
         if (!decision.approved()) {
             step.setStatus(RequestStepStatus.REJECTED);
             request.setOverallStatus(OverallStatus.REJECTED);
             request.setCompletedAt(now);
-            return requestMapper.toDto(request);
+            return requestMapper.toDto(request, requestStepRepository.findByRequestIdOrderByStepOrderAsc(request.getRequestId()));
         }
 
         step.setStatus(RequestStepStatus.APPROVED);
 
         List<WorkflowRequestStep> siblings = requestStepRepository
-                .findByRequest_RequestIdAndStepOrder(request.getRequestId(), step.getStepOrder());
+                .findByRequestIdAndStepOrder(request.getRequestId(), step.getStepOrder());
 
         if (!isGroupSatisfied(step.getApprovalType(), siblings)) {
-            return requestMapper.toDto(request);
+            return requestMapper.toDto(request, requestStepRepository.findByRequestIdOrderByStepOrderAsc(request.getRequestId()));
         }
 
-        Integer nextStepOrder = request.getSteps().stream()
+        List<WorkflowRequestStep> allSteps = requestStepRepository.findByRequestIdOrderByStepOrderAsc(request.getRequestId());
+
+        Integer nextStepOrder = allSteps.stream()
                 .map(WorkflowRequestStep::getStepOrder)
                 .filter(order -> order > step.getStepOrder())
                 .min(Integer::compareTo)
@@ -154,12 +178,12 @@ public class WorkflowRequestService {
             request.setCompletedAt(now);
         } else {
             request.setCurrentStep(nextStepOrder);
-            request.getSteps().stream()
+            allSteps.stream()
                     .filter(s -> s.getStepOrder().equals(nextStepOrder))
                     .forEach(s -> s.setStatus(RequestStepStatus.ACTIVE));
         }
 
-        return requestMapper.toDto(request);
+        return requestMapper.toDto(request, allSteps);
     }
 
     private boolean isGroupSatisfied(ApprovalType approvalType, List<WorkflowRequestStep> siblings) {

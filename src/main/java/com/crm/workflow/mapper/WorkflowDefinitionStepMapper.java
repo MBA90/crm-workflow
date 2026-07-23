@@ -16,6 +16,6 @@ public interface WorkflowDefinitionStepMapper {
     List<WorkflowDefinitionStepDto> toDtoList(List<WorkflowDefinitionStep> steps);
 
     @Mapping(target = "stepId", ignore = true)
-    @Mapping(target = "definition", ignore = true)
+    @Mapping(target = "definitionId", ignore = true)
     WorkflowDefinitionStep toEntity(WorkflowDefinitionStepRequest request);
 }
