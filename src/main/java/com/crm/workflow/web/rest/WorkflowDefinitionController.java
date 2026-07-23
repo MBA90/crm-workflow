@@ -2,7 +2,7 @@ package com.crm.workflow.web.rest;
 
 import com.crm.workflow.domain.enums.EntityType;
 import com.crm.workflow.domain.enums.WorkflowAction;
-import com.crm.workflow.dto.WorkflowDefinitionCreateRequest;
+import com.crm.workflow.dto.request.WorkflowDefinitionCreateRequest;
 import com.crm.workflow.dto.WorkflowDefinitionDto;
 import com.crm.workflow.service.WorkflowDefinitionService;
 import jakarta.validation.Valid;
