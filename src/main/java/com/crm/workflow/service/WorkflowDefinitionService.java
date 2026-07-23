@@ -48,18 +48,18 @@ public class WorkflowDefinitionService {
         definition.setName(request.name());
         definition.setVersion(nextVersion);
         definition.setActive(false);
-        definition = definitionRepository.save(definition);
+        WorkflowDefinition savedDefinition = definitionRepository.save(definition);
 
         List<WorkflowDefinitionStep> steps = request.steps().stream()
                 .map(stepRequest -> {
                     WorkflowDefinitionStep step = stepMapper.toEntity(stepRequest);
-                    step.setDefinitionId(definition.getDefinitionId());
+                    step.setDefinitionId(savedDefinition.getDefinitionId());
                     return step;
                 })
                 .toList();
         definitionStepRepository.saveAll(steps);
 
-        return definitionMapper.toDto(definition, steps);
+        return definitionMapper.toDto(savedDefinition, steps);
     }
 
     @Transactional(readOnly = true)
