@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- account | CREATE : still being drafted, never submitted -> no steps yet -->
+    <changeSet id="1-seed-account-create-draft-request" author="m.abdelhadi" context="seed">
+        <insert tableName="workflow_requests">
+            <column name="request_id" value="00000000-0000-0000-0000-000000000101"/>
+            <column name="definition_id" value="00000000-0000-0000-0000-000000000001"/>
+            <column name="entity_type" value="ACCOUNT"/>
+            <column name="action" value="CREATE"/>
+            <column name="payload" valueComputed="'{&quot;legalName&quot;:&quot;Stark Industries Inc&quot;,&quot;tradeName&quot;:&quot;Stark Industries&quot;,&quot;registrationNo&quot;:&quot;CR-5001&quot;,&quot;taxId&quot;:&quot;VAT-5001&quot;,&quot;industry&quot;:&quot;Aerospace&quot;,&quot;employeeBand&quot;:&quot;201-1000&quot;,&quot;country&quot;:&quot;US&quot;,&quot;city&quot;:&quot;Malibu&quot;,&quot;website&quot;:&quot;https://stark.example.com&quot;,&quot;accountType&quot;:&quot;prospect&quot;,&quot;ownerId&quot;:&quot;a0000000-0000-0000-0000-000000000002&quot;,&quot;source&quot;:&quot;admin_panel&quot;}'::jsonb"/>
+            <column name="overall_status" value="DRAFT"/>
+            <column name="requested_by" value="00000000-0000-0000-0000-000000000102"/>
+            <column name="requester_name" value="Alice Requester"/>
+        </insert>
+    </changeSet>
+
+    <!-- account | UPDATE : submitted against a real crm-account record (Initech GmbH), waiting on account-manager review -->
+    <changeSet id="2-seed-account-update-in-progress-request" author="m.abdelhadi" context="seed">
+        <insert tableName="workflow_requests">
+            <column name="request_id" value="00000000-0000-0000-0000-000000000201"/>
+            <column name="definition_id" value="00000000-0000-0000-0000-000000000004"/>
+            <column name="entity_type" value="ACCOUNT"/>
+            <column name="entity_id" value="33333333-3333-3333-3333-333333333333"/>
+            <column name="action" value="UPDATE"/>
+            <column name="payload" valueComputed="'{&quot;accountType&quot;:&quot;customer&quot;,&quot;employeeBand&quot;:&quot;201-1000&quot;}'::jsonb"/>
+            <column name="overall_status" value="IN_PROGRESS"/>
+            <column name="current_step" valueNumeric="1"/>
+            <column name="requested_by" value="00000000-0000-0000-0000-000000000202"/>
+            <column name="requester_name" value="Grace Requester"/>
+        </insert>
+        <insert tableName="workflow_request_steps">
+            <column name="request_step_id" value="00000000-0000-0000-0000-000000000203"/>
+            <column name="request_id" value="00000000-0000-0000-0000-000000000201"/>
+            <column name="step_order" valueNumeric="1"/>
+            <column name="step_name" value="Account Manager Review"/>
+            <column name="approver_role" value="account_manager"/>
+            <column name="approval_type" value="SINGLE"/>
+            <column name="status" value="ACTIVE"/>
+            <column name="sla_due_at" valueComputed="now() + interval '24 hours'"/>
+        </insert>
+    </changeSet>
+
+    <!-- deal | UPDATE : submitted, waiting on the single sales-manager step -->
+    <changeSet id="3-seed-deal-update-in-progress-request" author="m.abdelhadi" context="seed">
+        <insert tableName="workflow_requests">
+            <column name="request_id" value="00000000-0000-0000-0000-000000000301"/>
+            <column name="definition_id" value="00000000-0000-0000-0000-000000000006"/>
+            <column name="entity_type" value="DEAL"/>
+            <column name="entity_id" value="00000000-0000-0000-0000-000000000302"/>
+            <column name="action" value="UPDATE"/>
+            <column name="payload" valueComputed="'{&quot;amount&quot;:15000,&quot;stage&quot;:&quot;NEGOTIATION&quot;}'::jsonb"/>
+            <column name="overall_status" value="IN_PROGRESS"/>
+            <column name="current_step" valueNumeric="1"/>
+            <column name="requested_by" value="00000000-0000-0000-0000-000000000303"/>
+            <column name="requester_name" value="Bob Requester"/>
+        </insert>
+        <insert tableName="workflow_request_steps">
+            <column name="request_step_id" value="00000000-0000-0000-0000-000000000304"/>
+            <column name="request_id" value="00000000-0000-0000-0000-000000000301"/>
+            <column name="step_order" valueNumeric="1"/>
+            <column name="step_name" value="Sales Manager Review"/>
+            <column name="approver_role" value="sales_manager"/>
+            <column name="approval_type" value="SINGLE"/>
+            <column name="status" value="ACTIVE"/>
+            <column name="sla_due_at" valueComputed="now() + interval '24 hours'"/>
+        </insert>
+    </changeSet>
+
+    <!-- refund | CREATE, amount=750 (>=500) : Finance Review skipped by its condition, Finance Committee quorum (2) fully approved -->
+    <changeSet id="4-seed-refund-create-approved-request" author="m.abdelhadi" context="seed">
+        <insert tableName="workflow_requests">
+            <column name="request_id" value="00000000-0000-0000-0000-000000000401"/>
+            <column name="definition_id" value="00000000-0000-0000-0000-000000000008"/>
+            <column name="entity_type" value="REFUND"/>
+            <column name="action" value="CREATE"/>
+            <column name="payload" valueComputed="'{&quot;amount&quot;:750,&quot;reason&quot;:&quot;Product defect&quot;}'::jsonb"/>
+            <column name="overall_status" value="APPROVED"/>
+            <column name="current_step" valueNumeric="2"/>
+            <column name="requested_by" value="00000000-0000-0000-0000-000000000402"/>
+            <column name="requester_name" value="Carol Requester"/>
+            <column name="completed_at" valueComputed="now()"/>
+        </insert>
+        <insert tableName="workflow_request_steps">
+            <column name="request_step_id" value="00000000-0000-0000-0000-000000000403"/>
+            <column name="request_id" value="00000000-0000-0000-0000-000000000401"/>
+            <column name="step_order" valueNumeric="1"/>
+            <column name="step_name" value="Finance Review"/>
+            <column name="approver_role" value="finance"/>
+            <column name="approval_type" value="SINGLE"/>
+            <column name="status" value="SKIPPED"/>
+            <column name="sla_due_at" valueComputed="now() + interval '12 hours'"/>
+        </insert>
+        <insert tableName="workflow_request_steps">
+            <column name="request_step_id" value="00000000-0000-0000-0000-000000000404"/>
+            <column name="request_id" value="00000000-0000-0000-0000-000000000401"/>
+            <column name="step_order" valueNumeric="2"/>
+            <column name="step_name" value="Finance Committee"/>
+            <column name="approver_role" value="finance_committee"/>
+            <column name="approval_type" value="QUORUM"/>
+            <column name="quorum_count" valueNumeric="2"/>
+            <column name="assigned_to" value="00000000-0000-0000-0000-000000000406"/>
+            <column name="status" value="APPROVED"/>
+            <column name="decided_by" value="00000000-0000-0000-0000-000000000406"/>
+            <column name="decider_name" value="Eve Committee"/>
+            <column name="comment" value="Consistent with policy, approved."/>
+            <column name="sla_due_at" valueComputed="now() + interval '24 hours'"/>
+            <column name="decided_at" valueComputed="now()"/>
+        </insert>
+        <insert tableName="workflow_request_steps">
+            <column name="request_step_id" value="00000000-0000-0000-0000-000000000405"/>
+            <column name="request_id" value="00000000-0000-0000-0000-000000000401"/>
+            <column name="step_order" valueNumeric="2"/>
+            <column name="step_name" value="Finance Committee"/>
+            <column name="approver_role" value="finance_committee"/>
+            <column name="approval_type" value="QUORUM"/>
+            <column name="quorum_count" valueNumeric="2"/>
+            <column name="assigned_to" value="00000000-0000-0000-0000-000000000407"/>
+            <column name="status" value="APPROVED"/>
+            <column name="decided_by" value="00000000-0000-0000-0000-000000000407"/>
+            <column name="decider_name" value="Frank Committee"/>
+            <column name="comment" value="Approved."/>
+            <column name="sla_due_at" valueComputed="now() + interval '24 hours'"/>
+            <column name="decided_at" valueComputed="now()"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

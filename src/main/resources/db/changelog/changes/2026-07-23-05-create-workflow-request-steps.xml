@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-create-workflow-request-steps-table" author="m.abdelhadi">
+        <createTable tableName="workflow_request_steps">
+            <column name="request_step_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="request_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="step_order" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="step_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="approver_role" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="approval_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="quorum_count" type="INT"/>
+            <column name="assigned_to" type="UUID"/>
+            <column name="delegate_to" type="UUID"/>
+            <column name="status" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="decided_by" type="UUID"/>
+            <column name="decider_name" type="VARCHAR(255)"/>
+            <column name="comment" type="TEXT"/>
+            <column name="sla_due_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="escalated_at" type="TIMESTAMP"/>
+            <column name="decided_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="workflow_request_steps"
+                baseColumnNames="request_id"
+                constraintName="fk_workflow_request_steps_request"
+                referencedTableName="workflow_requests"
+                referencedColumnNames="request_id"
+                onDelete="CASCADE"/>
+
+        <createIndex tableName="workflow_request_steps" indexName="idx_workflow_request_steps_request_order">
+            <column name="request_id"/>
+            <column name="step_order"/>
+        </createIndex>
+
+        <createIndex tableName="workflow_request_steps" indexName="idx_workflow_request_steps_escalation">
+            <column name="status"/>
+            <column name="sla_due_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
