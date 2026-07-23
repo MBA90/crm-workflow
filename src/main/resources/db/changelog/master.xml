@@ -3,5 +3,10 @@
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
-            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"> 
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <include file="db/changelog/changes/2026-07-23-01-create-workflow-definitions.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/2026-07-23-02-create-workflow-definition-steps.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/2026-07-23-03-seed-workflow-definitions.xml" relativeToChangelogFile="false"/>
+
 </databaseChangeLog>
