@@ -6,14 +6,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -35,7 +31,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-@ToString(exclude = "request")
+@ToString
 @EqualsAndHashCode(of = "requestStepId")
 public class WorkflowRequestStep {
 
@@ -44,13 +40,8 @@ public class WorkflowRequestStep {
     @Column(name = "request_step_id", updatable = false, nullable = false)
     private UUID requestStepId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-            name = "request_id",
-            nullable = false,
-            foreignKey = @ForeignKey(name = "fk_workflow_request_steps_request")
-    )
-    private WorkflowRequest request;
+    @Column(name = "request_id", nullable = false)
+    private UUID requestId;
 
     /** 1, 2, 3 ... same number = parallel */
     @Column(name = "step_order", nullable = false)

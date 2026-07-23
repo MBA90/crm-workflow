@@ -1,6 +1,7 @@
 package com.crm.workflow.service;
 
 import com.crm.workflow.domain.WorkflowDefinition;
+import com.crm.workflow.domain.WorkflowDefinitionStep;
 import com.crm.workflow.domain.enums.ApprovalType;
 import com.crm.workflow.domain.enums.EntityType;
 import com.crm.workflow.domain.enums.OnRejectAction;
@@ -13,12 +14,15 @@ import com.crm.workflow.exception.WorkflowDefinitionNotFoundException;
 import com.crm.workflow.mapper.WorkflowDefinitionMapper;
 import com.crm.workflow.mapper.WorkflowDefinitionStepMapper;
 import com.crm.workflow.repository.WorkflowDefinitionRepository;
+import com.crm.workflow.repository.WorkflowDefinitionStepRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +30,7 @@ import java.util.UUID;
 public class WorkflowDefinitionService {
 
     private final WorkflowDefinitionRepository definitionRepository;
+    private final WorkflowDefinitionStepRepository definitionStepRepository;
     private final WorkflowDefinitionMapper definitionMapper;
     private final WorkflowDefinitionStepMapper stepMapper;
 
@@ -43,29 +48,46 @@ public class WorkflowDefinitionService {
         definition.setName(request.name());
         definition.setVersion(nextVersion);
         definition.setActive(false);
+        definition = definitionRepository.save(definition);
 
-        request.steps().forEach(stepRequest -> definition.addStep(stepMapper.toEntity(stepRequest)));
+        List<WorkflowDefinitionStep> steps = request.steps().stream()
+                .map(stepRequest -> {
+                    WorkflowDefinitionStep step = stepMapper.toEntity(stepRequest);
+                    step.setDefinitionId(definition.getDefinitionId());
+                    return step;
+                })
+                .toList();
+        definitionStepRepository.saveAll(steps);
 
-        return definitionMapper.toDto(definitionRepository.save(definition));
+        return definitionMapper.toDto(definition, steps);
     }
 
     @Transactional(readOnly = true)
     public WorkflowDefinitionDto getById(UUID definitionId) {
-        return definitionMapper.toDto(findOrThrow(definitionId));
+        WorkflowDefinition definition = findOrThrow(definitionId);
+        List<WorkflowDefinitionStep> steps = definitionStepRepository.findByDefinitionIdOrderByStepOrderAsc(definitionId);
+        return definitionMapper.toDto(definition, steps);
     }
 
     @Transactional(readOnly = true)
     public List<WorkflowDefinitionDto> list(EntityType entityType, WorkflowAction action) {
-        return definitionMapper.toDtoList(
-                definitionRepository.findByEntityTypeAndActionOrderByVersionDesc(entityType, action)
-        );
+        List<WorkflowDefinition> definitions = definitionRepository.findByEntityTypeAndActionOrderByVersionDesc(entityType, action);
+        List<UUID> definitionIds = definitions.stream().map(WorkflowDefinition::getDefinitionId).toList();
+        Map<UUID, List<WorkflowDefinitionStep>> stepsByDefinitionId = definitionStepRepository
+                .findByDefinitionIdInOrderByStepOrderAsc(definitionIds).stream()
+                .collect(Collectors.groupingBy(WorkflowDefinitionStep::getDefinitionId));
+
+        return definitions.stream()
+                .map(definition -> definitionMapper.toDto(definition, stepsByDefinitionId.getOrDefault(definition.getDefinitionId(), List.of())))
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public WorkflowDefinitionDto getActive(EntityType entityType, WorkflowAction action) {
-        return definitionRepository.findByEntityTypeAndActionAndActiveTrue(entityType, action)
-                .map(definitionMapper::toDto)
+        WorkflowDefinition definition = definitionRepository.findByEntityTypeAndActionAndActiveTrue(entityType, action)
                 .orElseThrow(() -> new WorkflowDefinitionNotFoundException(entityType, action));
+        List<WorkflowDefinitionStep> steps = definitionStepRepository.findByDefinitionIdOrderByStepOrderAsc(definition.getDefinitionId());
+        return definitionMapper.toDto(definition, steps);
     }
 
     public WorkflowDefinitionDto activate(UUID definitionId) {
@@ -76,7 +98,8 @@ public class WorkflowDefinitionService {
                 .ifPresent(current -> current.setActive(false));
 
         definition.setActive(true);
-        return definitionMapper.toDto(definition);
+        List<WorkflowDefinitionStep> steps = definitionStepRepository.findByDefinitionIdOrderByStepOrderAsc(definitionId);
+        return definitionMapper.toDto(definition, steps);
     }
 
     private WorkflowDefinition findOrThrow(UUID definitionId) {

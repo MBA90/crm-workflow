@@ -9,13 +9,9 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.EqualsAndHashCode;
@@ -38,7 +34,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-@ToString(exclude = "definition")
+@ToString
 @EqualsAndHashCode(of = "stepId")
 public class WorkflowDefinitionStep {
 
@@ -47,13 +43,8 @@ public class WorkflowDefinitionStep {
     @Column(name = "step_id", updatable = false, nullable = false)
     private UUID stepId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-            name = "definition_id",
-            nullable = false,
-            foreignKey = @ForeignKey(name = "fk_workflow_definition_steps_definition")
-    )
-    private WorkflowDefinition definition;
+    @Column(name = "definition_id", nullable = false)
+    private UUID definitionId;
 
     /** 1, 2, 3 ... same number = parallel */
     @Column(name = "step_order", nullable = false)
