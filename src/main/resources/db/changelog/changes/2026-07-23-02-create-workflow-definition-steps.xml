@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-create-workflow-definition-steps-table" author="m.abdelhadi">
+        <createTable tableName="workflow_definition_steps">
+            <column name="step_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="definition_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="step_order" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="step_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="approver_role" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="approval_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="quorum_count" type="INT"/>
+            <column name="condition" type="JSONB"/>
+            <column name="sla_hours" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="on_reject" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="return_to_step" type="INT"/>
+        </createTable>
+
+        <addUniqueConstraint
+                tableName="workflow_definition_steps"
+                columnNames="definition_id, step_order, step_name"
+                constraintName="uk_workflow_definition_steps_definition_order_name"/>
+
+        <addForeignKeyConstraint
+                baseTableName="workflow_definition_steps"
+                baseColumnNames="definition_id"
+                constraintName="fk_workflow_definition_steps_definition"
+                referencedTableName="workflow_definitions"
+                referencedColumnNames="definition_id"
+                onDelete="CASCADE"/>
+    </changeSet>
+
+    <changeSet id="2-workflow-definition-steps-check-constraints" author="m.abdelhadi">
+        <sql>
+            ALTER TABLE workflow_definition_steps
+                ADD CONSTRAINT chk_step_quorum_count
+                    CHECK (approval_type &lt;&gt; 'QUORUM' OR quorum_count IS NOT NULL);
+        </sql>
+        <sql>
+            ALTER TABLE workflow_definition_steps
+                ADD CONSTRAINT chk_step_return_to_step
+                    CHECK (on_reject &lt;&gt; 'RETURN_TO_STEP' OR return_to_step IS NOT NULL);
+        </sql>
+        <rollback>
+            <sql>ALTER TABLE workflow_definition_steps DROP CONSTRAINT chk_step_quorum_count;</sql>
+            <sql>ALTER TABLE workflow_definition_steps DROP CONSTRAINT chk_step_return_to_step;</sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
