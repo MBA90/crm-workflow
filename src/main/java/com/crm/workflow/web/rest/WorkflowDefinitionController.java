@@ -4,7 +4,7 @@ import com.crm.workflow.domain.enums.EntityType;
 import com.crm.workflow.domain.enums.WorkflowAction;
 import com.crm.workflow.dto.request.WorkflowDefinitionCreateRequest;
 import com.crm.workflow.dto.WorkflowDefinitionDto;
-import com.crm.workflow.service.WorkflowDefinitionService;
+import com.crm.workflow.service.WorkflowDefinitionServiceFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,7 +25,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class WorkflowDefinitionController {
 
-    private final WorkflowDefinitionService workflowDefinitionService;
+    private final WorkflowDefinitionServiceFacade workflowDefinitionService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
