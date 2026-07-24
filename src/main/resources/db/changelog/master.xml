@@ -11,5 +11,6 @@
     <include file="db/changelog/changes/2026-07-23-04-create-workflow-requests.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/2026-07-23-05-create-workflow-request-steps.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/2026-07-23-06-seed-workflow-requests.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/2026-07-24-07-create-workflow-step-decisions.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>
