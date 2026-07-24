@@ -3,6 +3,9 @@
 A Spring Boot microservice for managing CRM WORKFLOW, backed by a PostgreSQL database with schema
 managed by Liquibase.
 
+> 📄 **New here?** For a business & solution overview of what this service does and why, see
+> [**docs/BUSINESS_MODEL.md**](docs/BUSINESS_MODEL.md).
+
 ## Tech Stack
 
 - Java 21
