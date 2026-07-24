@@ -1,5 +1,7 @@
 package com.crm.workflow.service;
 
+import com.crm.workflow.domain.ApprovalHistory;
+import com.crm.workflow.domain.OutboxEvent;
 import com.crm.workflow.domain.WorkflowDefinition;
 import com.crm.workflow.domain.WorkflowDefinitionStep;
 import com.crm.workflow.domain.WorkflowRequest;
@@ -7,6 +9,7 @@ import com.crm.workflow.domain.WorkflowRequestStep;
 import com.crm.workflow.domain.WorkflowStepDecision;
 import com.crm.workflow.domain.enums.ApprovalType;
 import com.crm.workflow.domain.enums.DecisionOutcome;
+import com.crm.workflow.domain.enums.OutboxEventType;
 import com.crm.workflow.domain.enums.OverallStatus;
 import com.crm.workflow.domain.enums.RequestStepStatus;
 import com.crm.workflow.dto.request.WorkflowRequestCreateRequest;
@@ -18,11 +21,15 @@ import com.crm.workflow.exception.WorkflowRequestNotFoundException;
 import com.crm.workflow.exception.WorkflowRequestStepNotFoundException;
 import com.crm.workflow.mapper.WorkflowRequestMapper;
 import com.crm.workflow.mapper.WorkflowRequestStepMapper;
+import com.crm.workflow.repository.ApprovalHistoryRepository;
+import com.crm.workflow.repository.OutboxEventRepository;
 import com.crm.workflow.repository.WorkflowDefinitionRepository;
 import com.crm.workflow.repository.WorkflowDefinitionStepRepository;
 import com.crm.workflow.repository.WorkflowRequestRepository;
 import com.crm.workflow.repository.WorkflowRequestStepRepository;
 import com.crm.workflow.repository.WorkflowStepDecisionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,8 +55,11 @@ public class WorkflowRequestService {
     private final WorkflowDefinitionRepository definitionRepository;
     private final WorkflowDefinitionStepRepository definitionStepRepository;
     private final WorkflowStepDecisionRepository stepDecisionRepository;
+    private final ApprovalHistoryRepository historyRepository;
+    private final OutboxEventRepository outboxRepository;
     private final WorkflowRequestMapper requestMapper;
     private final WorkflowRequestStepMapper requestStepMapper;
+    private final ObjectMapper objectMapper;
 
     public WorkflowRequestDto create(WorkflowRequestCreateRequest createRequest) {
         WorkflowDefinition definition = definitionRepository.findById(createRequest.definitionId())
@@ -70,7 +80,11 @@ public class WorkflowRequestService {
         request.setRequestedBy(createRequest.requestedBy());
         request.setRequesterName(createRequest.requesterName());
 
-        return requestMapper.toDto(requestRepository.save(request), List.of());
+        request = requestRepository.save(request);
+        recordHistory(request.getRequestId(), null, request.getRequestedBy(), request.getRequesterName(),
+                null, OverallStatus.DRAFT.name(), null, request.getCreatedAt());
+
+        return requestMapper.toDto(request, List.of());
     }
 
     public WorkflowRequestDto submit(UUID requestId) {
@@ -113,6 +127,9 @@ public class WorkflowRequestService {
 
         request.setOverallStatus(OverallStatus.IN_PROGRESS);
         request.setCurrentStep(firstStepOrder);
+
+        recordHistory(request.getRequestId(), null, request.getRequestedBy(), request.getRequesterName(),
+                OverallStatus.DRAFT.name(), OverallStatus.IN_PROGRESS.name(), null, now);
 
         return requestMapper.toDto(request, steps);
     }
@@ -172,6 +189,13 @@ public class WorkflowRequestService {
             step.setStatus(RequestStepStatus.REJECTED);
             request.setOverallStatus(OverallStatus.REJECTED);
             request.setCompletedAt(now);
+
+            recordHistory(request.getRequestId(), step.getRequestStepId(), decision.decidedBy(), decision.deciderName(),
+                    RequestStepStatus.ACTIVE.name(), RequestStepStatus.REJECTED.name(), decision.comment(), now);
+            recordHistory(request.getRequestId(), null, decision.decidedBy(), decision.deciderName(),
+                    OverallStatus.IN_PROGRESS.name(), OverallStatus.REJECTED.name(), null, now);
+            publishOutboxEvent(request, OutboxEventType.WORKFLOW_REJECTED, now);
+
             return requestMapper.toDto(request, requestStepRepository.findByRequestIdOrderByStepOrderAsc(request.getRequestId()));
         }
 
@@ -184,6 +208,8 @@ public class WorkflowRequestService {
         }
 
         step.setStatus(RequestStepStatus.APPROVED);
+        recordHistory(request.getRequestId(), step.getRequestStepId(), decision.decidedBy(), decision.deciderName(),
+                RequestStepStatus.ACTIVE.name(), RequestStepStatus.APPROVED.name(), decision.comment(), now);
 
         List<WorkflowRequestStep> siblings = requestStepRepository
                 .findByRequestIdAndStepOrder(request.getRequestId(), step.getStepOrder());
@@ -203,14 +229,52 @@ public class WorkflowRequestService {
         if (nextStepOrder == null) {
             request.setOverallStatus(OverallStatus.APPROVED);
             request.setCompletedAt(now);
+            recordHistory(request.getRequestId(), null, decision.decidedBy(), decision.deciderName(),
+                    OverallStatus.IN_PROGRESS.name(), OverallStatus.APPROVED.name(), null, now);
+            publishOutboxEvent(request, OutboxEventType.WORKFLOW_APPROVED, now);
         } else {
             request.setCurrentStep(nextStepOrder);
             allSteps.stream()
                     .filter(s -> s.getStepOrder().equals(nextStepOrder))
-                    .forEach(s -> s.setStatus(RequestStepStatus.ACTIVE));
+                    .forEach(s -> {
+                        s.setStatus(RequestStepStatus.ACTIVE);
+                        recordHistory(request.getRequestId(), s.getRequestStepId(), decision.decidedBy(), decision.deciderName(),
+                                RequestStepStatus.PENDING.name(), RequestStepStatus.ACTIVE.name(), null, now);
+                    });
         }
 
         return requestMapper.toDto(request, allSteps);
+    }
+
+    private void recordHistory(UUID requestId, UUID requestStepId, UUID actorId, String actorName,
+            String fromStatus, String toStatus, String comment, Instant occurredAt) {
+        ApprovalHistory history = new ApprovalHistory();
+        history.setRequestId(requestId);
+        history.setRequestStepId(requestStepId);
+        history.setActorId(actorId);
+        history.setActorName(actorName);
+        history.setFromStatus(fromStatus);
+        history.setToStatus(toStatus);
+        history.setComment(comment);
+        history.setOccurredAt(occurredAt);
+        historyRepository.save(history);
+    }
+
+    private void publishOutboxEvent(WorkflowRequest request, OutboxEventType eventType, Instant occurredAt) {
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("requestId", request.getRequestId().toString());
+        payload.put("entityType", request.getEntityType());
+        if (request.getEntityId() != null) {
+            payload.put("entityId", request.getEntityId().toString());
+        }
+        payload.put("action", request.getAction().name());
+        payload.put("occurredAt", occurredAt.toString());
+
+        OutboxEvent event = new OutboxEvent();
+        event.setAggregateId(request.getRequestId());
+        event.setEventType(eventType);
+        event.setPayload(payload);
+        outboxRepository.save(event);
     }
 
     private boolean isGroupSatisfied(ApprovalType approvalType, List<WorkflowRequestStep> siblings) {
