@@ -4,7 +4,7 @@ import com.crm.workflow.domain.enums.OverallStatus;
 import com.crm.workflow.dto.request.WorkflowRequestCreateRequest;
 import com.crm.workflow.dto.request.WorkflowRequestStepDecisionRequest;
 import com.crm.workflow.dto.WorkflowRequestDto;
-import com.crm.workflow.service.WorkflowRequestService;
+import com.crm.workflow.service.WorkflowRequestServiceFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,7 +25,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class WorkflowRequestController {
 
-    private final WorkflowRequestService workflowRequestService;
+    private final WorkflowRequestServiceFacade workflowRequestService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
