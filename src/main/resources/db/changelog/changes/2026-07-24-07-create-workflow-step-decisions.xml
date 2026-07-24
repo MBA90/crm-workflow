@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-create-workflow-step-decisions-table" author="m.abdelhadi">
+        <createTable tableName="workflow_step_decisions">
+            <column name="decision_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="request_step_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="decided_by" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="decider_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="decision" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="comment" type="TEXT"/>
+            <column name="decided_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="workflow_step_decisions"
+                baseColumnNames="request_step_id"
+                constraintName="fk_workflow_step_decisions_request_step"
+                referencedTableName="workflow_request_steps"
+                referencedColumnNames="request_step_id"
+                onDelete="CASCADE"/>
+
+        <addUniqueConstraint
+                tableName="workflow_step_decisions"
+                columnNames="request_step_id, decided_by"
+                constraintName="uk_workflow_step_decisions_step_decider"/>
+    </changeSet>
+
+</databaseChangeLog>
