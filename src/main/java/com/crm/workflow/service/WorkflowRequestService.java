@@ -4,7 +4,9 @@ import com.crm.workflow.domain.WorkflowDefinition;
 import com.crm.workflow.domain.WorkflowDefinitionStep;
 import com.crm.workflow.domain.WorkflowRequest;
 import com.crm.workflow.domain.WorkflowRequestStep;
+import com.crm.workflow.domain.WorkflowStepDecision;
 import com.crm.workflow.domain.enums.ApprovalType;
+import com.crm.workflow.domain.enums.DecisionOutcome;
 import com.crm.workflow.domain.enums.OverallStatus;
 import com.crm.workflow.domain.enums.RequestStepStatus;
 import com.crm.workflow.dto.request.WorkflowRequestCreateRequest;
@@ -20,6 +22,7 @@ import com.crm.workflow.repository.WorkflowDefinitionRepository;
 import com.crm.workflow.repository.WorkflowDefinitionStepRepository;
 import com.crm.workflow.repository.WorkflowRequestRepository;
 import com.crm.workflow.repository.WorkflowRequestStepRepository;
+import com.crm.workflow.repository.WorkflowStepDecisionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +47,7 @@ public class WorkflowRequestService {
     private final WorkflowRequestStepRepository requestStepRepository;
     private final WorkflowDefinitionRepository definitionRepository;
     private final WorkflowDefinitionStepRepository definitionStepRepository;
+    private final WorkflowStepDecisionRepository stepDecisionRepository;
     private final WorkflowRequestMapper requestMapper;
     private final WorkflowRequestStepMapper requestStepMapper;
 
@@ -141,7 +145,22 @@ public class WorkflowRequestService {
             throw new InvalidWorkflowRequestException("Step is not active: " + requestStepId);
         }
 
+        if (stepDecisionRepository.existsByRequestStepIdAndDecidedBy(requestStepId, decision.decidedBy())) {
+            throw new InvalidWorkflowRequestException(
+                    "Approver has already decided on this step: " + requestStepId);
+        }
+
         Instant now = Instant.now();
+
+        WorkflowStepDecision vote = new WorkflowStepDecision();
+        vote.setRequestStepId(requestStepId);
+        vote.setDecidedBy(decision.decidedBy());
+        vote.setDeciderName(decision.deciderName());
+        vote.setDecision(decision.approved() ? DecisionOutcome.APPROVED : DecisionOutcome.REJECTED);
+        vote.setComment(decision.comment());
+        vote.setDecidedAt(now);
+        stepDecisionRepository.save(vote);
+
         step.setDecidedBy(decision.decidedBy());
         step.setDeciderName(decision.deciderName());
         step.setComment(decision.comment());
@@ -154,6 +173,14 @@ public class WorkflowRequestService {
             request.setOverallStatus(OverallStatus.REJECTED);
             request.setCompletedAt(now);
             return requestMapper.toDto(request, requestStepRepository.findByRequestIdOrderByStepOrderAsc(request.getRequestId()));
+        }
+
+        if (step.getApprovalType() == ApprovalType.QUORUM) {
+            long approvedVotes = stepDecisionRepository.countByRequestStepIdAndDecision(requestStepId, DecisionOutcome.APPROVED);
+            Integer quorumCount = step.getQuorumCount();
+            if (quorumCount == null || approvedVotes < quorumCount) {
+                return requestMapper.toDto(request, requestStepRepository.findByRequestIdOrderByStepOrderAsc(request.getRequestId()));
+            }
         }
 
         step.setStatus(RequestStepStatus.APPROVED);
@@ -188,13 +215,9 @@ public class WorkflowRequestService {
 
     private boolean isGroupSatisfied(ApprovalType approvalType, List<WorkflowRequestStep> siblings) {
         return switch (approvalType) {
-            case SINGLE -> true;
+            // quorum is verified against workflow_step_decisions before the step is marked APPROVED
+            case SINGLE, QUORUM -> true;
             case ALL -> siblings.stream().allMatch(s -> s.getStatus() == RequestStepStatus.APPROVED);
-            case QUORUM -> {
-                long approvedCount = siblings.stream().filter(s -> s.getStatus() == RequestStepStatus.APPROVED).count();
-                Integer quorumCount = siblings.get(0).getQuorumCount();
-                yield quorumCount != null && approvedCount >= quorumCount;
-            }
         };
     }
 
