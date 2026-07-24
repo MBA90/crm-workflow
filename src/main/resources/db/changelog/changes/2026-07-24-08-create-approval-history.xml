@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-create-approval-history-table" author="m.abdelhadi">
+        <createTable tableName="approval_history">
+            <column name="history_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="request_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="request_step_id" type="UUID"/>
+            <column name="actor_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="actor_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="from_status" type="VARCHAR(20)"/>
+            <column name="to_status" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="comment" type="TEXT"/>
+            <column name="occurred_at" type="TIMESTAMP" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="approval_history"
+                baseColumnNames="request_id"
+                constraintName="fk_approval_history_request"
+                referencedTableName="workflow_requests"
+                referencedColumnNames="request_id"
+                onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint
+                baseTableName="approval_history"
+                baseColumnNames="request_step_id"
+                constraintName="fk_approval_history_request_step"
+                referencedTableName="workflow_request_steps"
+                referencedColumnNames="request_step_id"
+                onDelete="CASCADE"/>
+
+        <createIndex tableName="approval_history" indexName="idx_approval_history_request">
+            <column name="request_id"/>
+            <column name="occurred_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
